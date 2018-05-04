@@ -569,37 +569,26 @@ public enum DslCompiler implements CompileParameter, ParameterParser {
 
 	public static Either<String> migration(
 			final Context context,
-			final DatabaseInfo dbInfo,
-			final List<File> currentDsls) throws ExitException {
+			final String target,
+			final Optional<File> previousDslFile,
+			final Optional<String> previousCompilerVersion,
+			final List<File> currentDslFiles) throws ExitException {
 		final List<String> arguments = new ArrayList<String>();
-		arguments.add("target=" + dbInfo.database.toLowerCase() + dbInfo.dbVersion);
+		arguments.add("target=" + target);
 		if (context.contains(VarraySize.INSTANCE)) {
 			arguments.add("varray=" + context.get(VarraySize.INSTANCE));
 		}
 		if (context.contains(GrantRole.INSTANCE)) {
 			arguments.add("role=" + context.get(GrantRole.INSTANCE));
 		}
-		if (dbInfo.dsl != null && !dbInfo.dsl.isEmpty()) {
-			final StringBuilder oldDsl = new StringBuilder();
-			for (final String v : dbInfo.dsl.values()) {
-				oldDsl.append(v);
-			}
-			final File previousDsl = new File(TempPath.getTempProjectPath(context), "old.dsl");
-			try {
-				Utils.saveFile(context, previousDsl, oldDsl.toString());
-			} catch (IOException ex) {
-				context.error("Unable to save old DSL version for comparison.");
-				return Either.fail(ex);
-			}
-			arguments.add("previous-dsl=" + previousDsl.getAbsolutePath());
-			if (dbInfo.compilerVersion != null) {
-				arguments.add("previous-compiler=" + dbInfo.compilerVersion);
-			}
-		}
-		for (final File f : currentDsls) {
+		previousDslFile.ifPresent(file ->
+			arguments.add("previous-dsl=" + file.getAbsolutePath()));
+		previousCompilerVersion.ifPresent(version ->
+			arguments.add("previous-compiler=" + version));
+		for (final File f : currentDslFiles) {
 			arguments.add("dsl=" + f.getAbsolutePath());
 		}
-		context.log("Creating SQL migration for " + dbInfo.database + " ...");
+		context.log("Creating SQL migration...");
 		final Either<byte[]> result = runCompiler(context, arguments);
 		if (!result.isSuccess()) {
 			return Either.fail(result.whyNot());

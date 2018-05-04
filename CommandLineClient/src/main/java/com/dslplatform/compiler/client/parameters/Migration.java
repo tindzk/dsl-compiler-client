@@ -101,9 +101,34 @@ public enum Migration implements CompileParameter {
 			final File path,
 			final DatabaseInfo dbInfo,
 			final String file) throws ExitException {
-		final List<File> currentDsl = DslPath.getDslPaths(context);
-		context.show("Creating SQL migration for " + dbInfo.database + " ...");
-		final Either<String> migration = DslCompiler.migration(context, dbInfo, currentDsl);
+		final List<File> currentDslFiles = DslPath.getDslPaths(context);
+		context.show("Creating SQL migration for " + dbInfo.database + "...");
+
+		final String target = dbInfo.database.toLowerCase() + dbInfo.dbVersion;
+
+		final Optional<File> previousDslFile;
+		final Optional<String> previousCompilerVersion;
+		if (dbInfo.dsl == null || dbInfo.dsl.isEmpty()) {
+			previousDslFile = Optional.empty();
+			previousCompilerVersion = Optional.empty();
+		} else {
+			previousDslFile = Optional.of(new File(TempPath.getTempProjectPath(context), "old.dsl"));
+			previousCompilerVersion = Optional.of(dbInfo.compilerVersion);
+
+			final StringBuilder oldDsl = new StringBuilder();
+			for (final String v : dbInfo.dsl.values()) {
+				oldDsl.append(v);
+			}
+			try {
+				Utils.saveFile(context, previousDslFile.get(), oldDsl.toString());
+			} catch (IOException ex) {
+				context.error("Unable to save old DSL version for comparison.");
+				throw new ExitException();
+			}
+		}
+
+		final Either<String> migration = DslCompiler.migration(
+				context, target, previousDslFile, previousCompilerVersion, currentDslFiles);
 		if (!migration.isSuccess()) {
 			context.error("Error creating SQL migration:");
 			context.error(migration.whyNot());

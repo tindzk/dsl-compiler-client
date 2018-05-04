@@ -360,7 +360,7 @@ object Actions {
 
   private def executeContext(dsls: Seq[File], compiler: String, serverMode: Boolean, serverURL: Option[String], serverPort: Option[Int], plugins: Option[File], latest: Boolean, ctx: DslContext, logger: Logger, verbose: Boolean, ansi: Boolean): Unit = {
     if (dsls.isEmpty) {
-      throw new RuntimeException(s"No DSL paths/files specified in dslDslPath setting")
+      throw new RuntimeException("No DSL paths/files specified in dslDslPath setting")
     }
     ctx.put(DslPath.INSTANCE, dsls.mkString(File.pathSeparator))
     val startedNow = {
