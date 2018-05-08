@@ -56,16 +56,6 @@ public enum Migration implements CompileParameter {
 				if (value == null || value.length() == 0) {
 					return true;
 				}
-				final File sqlPath = new File(value);
-				if (!sqlPath.exists()) {
-					context.error("Path for SQL migration script provided (" + value + ") but not found");
-					return false;
-				}
-				if (sqlPath.isFile()) {
-					context.error("Provided path for SQL migration is a file and not a folder (" + value + ").\n"
-							+ "Please specify folder which will be used for migration.");
-					return false;
-				}
 			}
 		}
 		return true;
@@ -75,21 +65,22 @@ public enum Migration implements CompileParameter {
 	public void run(final Context context) throws ExitException {
 		if (context.contains(Migration.INSTANCE)) {
 			final String value = context.get(SqlPath.INSTANCE);
+			final String fallbackFileName =
+					"sql-migration-" + (new Date().getTime()) + ".sql";
+
 			final File path;
 			if (!context.contains(SqlPath.INSTANCE) || value == null || value.length() == 0) {
-				path = TempPath.getTempProjectPath(context);
+				path = new File(TempPath.getTempProjectPath(context), fallbackFileName);
+			} else if (new File(value).isDirectory()) {
+				path = new File(value, fallbackFileName);
 			} else {
 				path = new File(value);
 			}
-			if (!path.exists()) {
-				context.error("Error accessing SQL path (" + path.getAbsolutePath() + ").");
-				throw new ExitException();
-			}
+
 			if (context.contains(PostgresConnection.INSTANCE)) {
 				final DatabaseInfo dbInfo = PostgresConnection.getDatabaseDslAndVersion(context);
 				createMigration(context, path, dbInfo, POSTGRES_MIGRATION_FILE_NAME);
-			}
-			if (context.contains(OracleConnection.INSTANCE)) {
+			} else if (context.contains(OracleConnection.INSTANCE)) {
 				final DatabaseInfo dbInfo = OracleConnection.getDatabaseDslAndVersion(context);
 				createMigration(context, path, dbInfo, ORACLE_MIGRATION_FILE_NAME);
 			}
@@ -98,9 +89,9 @@ public enum Migration implements CompileParameter {
 
 	private static void createMigration(
 			final Context context,
-			final File path,
+			final File output,
 			final DatabaseInfo dbInfo,
-			final String file) throws ExitException {
+			final String databaseType) throws ExitException {
 		final List<File> currentDslFiles = DslPath.getDslPaths(context);
 		context.show("Creating SQL migration for " + dbInfo.database + "...");
 
@@ -135,25 +126,24 @@ public enum Migration implements CompileParameter {
 			throw new ExitException();
 		}
 		final String script = migration.get();
-		final String sqlFileName = dbInfo.database.toLowerCase() + "-sql-migration-" + (new Date().getTime());
+
 		if (script.length() > 0) {
-			final File sqlFile = new File(path.getAbsolutePath(), sqlFileName + ".sql");
 			try {
-				Utils.saveFile(context, sqlFile, script);
+				Utils.saveFile(context, output, script);
 			} catch (IOException e) {
-				context.error("Error saving migration script to " + sqlFile.getAbsolutePath());
+				context.error("Error saving migration script to " + output.getAbsolutePath());
 				context.error(e);
 				throw new ExitException();
 			}
-			context.show("Migration saved to " + sqlFile.getAbsolutePath());
+			context.show("Migration saved to " + output.getAbsolutePath());
 			final String[] descriptions = extractDescriptions(script);
 			for (int i = 1; i < descriptions.length; i++) {
 				context.log(descriptions[i]);
 			}
-			context.cache(file, sqlFile);
+			context.cache(databaseType, output);
 		} else {
 			context.show("No database changes detected.");
-			context.cache(file, new File("empty.sql"));
+			context.cache(databaseType, new File("empty.sql"));
 		}
 	}
 

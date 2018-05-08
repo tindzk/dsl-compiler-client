@@ -6,7 +6,7 @@ name := "sbt-dsl-platform"
 version := "0.7.3"
 
 libraryDependencies ++= Seq(
-  "com.dslplatform" % "dsl-clc" % "1.9.4",
+  "com.dslplatform" % "dsl-clc" % "1.9.5-SNAPSHOT",
   "org.clapper" %% "classutil" % "1.1.2"
 )
 
